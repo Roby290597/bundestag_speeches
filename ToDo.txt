@@ -1,0 +1,11 @@
+- Fortführen mit Sentiment Analyse 
+- Einführung von Text Summarization 
+    - Erstellen einer Datenbank (ChromaDB) zum Faktencheck 
+
+    
+
+
+- Vorkommen von rhetorischen Mitteln analysieren
+- Analysiere nicht anwesende Abgeordnete
+- Wie kann ich noch die Kommentare integrieren 
+- Analyse der Embeddings mit Sentence Transformers
