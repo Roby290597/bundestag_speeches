@@ -1,6 +1,6 @@
-Nutzung der Plenar Protokolle vom Bundestag : https://www.bundestag.de/services/opendata 
+Usage of Plenar Protocols of the German Bundestag : https://www.bundestag.de/services/opendata 
 
-Methodik der NLP mittels HG Transformers
-  - Sentiment Analyse
-  - Textzusammenfassung  
+Methods of NLP using HG Tranformer
+  - Sentiment Analysis
+  - Text Summarization   
   
