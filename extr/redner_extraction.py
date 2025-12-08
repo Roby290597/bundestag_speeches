@@ -46,12 +46,16 @@ def extract_all_speakers(root):
                     "nachname": nachname,
                     "fraktion": fraktion,
                     #"rolle_lang": rolle_lang,
-                    #"rolle_kurz": rolle_kurz
+                    "rolle_kurz": rolle_kurz 
                 })
                 
     return speakers
 
 
+
+##############################
+##### Sentiment Analysis #####
+##############################
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
@@ -85,6 +89,39 @@ def get_average_sentiment(text, chunk_size=512):
         'label': average_label,
         'score': average_score,
         'chunks_analyzed': len(sentiments)
+        
     }
+
+
+##############################
+#####   Text Embedding   #####  
+##############################
+
+
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
+model = SentenceTransformer("all-MiniLM-L6-v2")  # klein & schnell; gute Qualität
+
+def embed(texts):
+    # texts: str or list[str]
+    return model.encode(texts, convert_to_numpy=True, normalize_embeddings=False)
+
+def cosine_sim(a, b):
+    # numerisch stabil: L2-normalisieren dann dot
+    a = a / np.linalg.norm(a)
+    b = b / np.linalg.norm(b)
+    return float(np.dot(a, b))
+
+# # Example
+# t1 = "This is an example text."
+# t2 = "This is an example text !!!!!!!!!!!!!!!."
+# v1, v2 = embed([t1, t2])
+
+
+# print("Cosine similarity:", cosine_sim(v1, v2))
+
+
+
 
 
