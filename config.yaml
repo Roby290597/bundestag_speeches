@@ -1,0 +1,37 @@
+# config.yaml
+
+
+
+
+project:
+  name: nlp_project
+  seed: 42
+
+paths:
+  data_dir: ./data
+  model_dir: ./models
+  logs_dir: ./logs
+
+data:
+  train_file: train.csv
+  test_file: test.csv
+  text_column: text
+  label_column: label
+  shuffle: true
+
+training:
+  epochs: 10
+  batch_size: 32
+  learning_rate: 0.0003
+  optimizer: adam
+  device: cuda    # oder "cpu"
+
+model:
+  type: bert
+  name: bert-base-german-cased
+  max_length: 128
+  dropout: 0.1
+
+logging:
+  level: INFO
+  save_every: 1
