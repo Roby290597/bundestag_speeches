@@ -7,3 +7,6 @@
 - Analysiere nicht anwesende Abgeordnete
 - Wie kann ich noch die Kommentare integrieren ?
 - Analyse der Embeddings mit Sentence Transformers
+
+
+$env:HF_TOKEN="xxxx"
