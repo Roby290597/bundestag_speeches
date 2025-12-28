@@ -1,10 +1,8 @@
 # config.yaml
 
 
-
-
 project:
-  name: nlp_project
+  name: bundestage_speeches
   seed: 42
 
 paths:
