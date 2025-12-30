@@ -11,6 +11,7 @@ paths:
   logs_dir: ./logs
 
 data:
+  xml_file: https://www.bundestag.de/resource/blob/1115000/21032.xml
   train_file: train.csv
   test_file: test.csv
   text_column: text
