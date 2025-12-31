@@ -25,11 +25,25 @@ training:
   optimizer: adam
   device: cuda    # oder "cpu"
 
-model:
-  type: bert
-  name: bert-base-german-cased
+summarization:
+  model: bert
+  tokenizer: bert-base-german-cased
   max_length: 128
-  dropout: 0.1
+  min_length: 100
+
+
+sentiment_analysis:
+  model: bert
+  tokenizer: bert-base-german-cased
+  num_labels: 3
+
+
+fact_checking:
+  model: bert
+  tokenizer: bert-base-german-cased
+
+
+
 
 logging:
   level: INFO
