@@ -44,7 +44,7 @@ tokenized_billsum = billsum.map(preprocess_function, batched=True)
 from rouge_score import rouge_scorer
 
 
-senetence1 = "The quick brown fox jumps on the dog lol lol lol lol"
+senetence1 = "The quick brown fox jumps on the cat."
 senetence2 = "The quick brown fox jumps on the dog."
 
 scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2','rougeL'], use_stemmer=True)

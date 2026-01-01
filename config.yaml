@@ -1,6 +1,4 @@
 # config.yaml
-
-
 project:
   name: bundestage_speeches
   seed: 42
@@ -26,11 +24,11 @@ training:
   device: cuda    # oder "cpu"
 
 summarization:
-  model: bert
-  tokenizer: bert-base-german-cased
-  max_length: 128
-  min_length: 100
-
+  model: t5-small
+  tokenizer: t5-small
+  max_length: 1100
+  min_length: 700
+  metric : ("rouge1", "rouge2", "rougeL")
 
 sentiment_analysis:
   model: bert
@@ -41,8 +39,6 @@ sentiment_analysis:
 fact_checking:
   model: bert
   tokenizer: bert-base-german-cased
-
-
 
 
 logging:
