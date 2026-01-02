@@ -52,7 +52,7 @@ with gr.Blocks() as demo:
 
 # Launch the app with Gradio UI
 if __name__ == "__main__":
-    demo.launch(footer_links=["gradio", "roby"])
+    demo.launch(footer_links=["gradio"])
 
 
 
