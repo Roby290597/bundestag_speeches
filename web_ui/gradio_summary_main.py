@@ -45,7 +45,6 @@ for speech in extract_speeches(root):
         redner.append(speech['name'])
         reden[speech['name']] = speech['text']
     else:
-        print("DOPPELT:", speech['name'])
         reden[speech['name']] += "\n Nächste Rede:" + speech['text']
         doppelt.append(speech['name'])
 
@@ -86,31 +85,44 @@ def analyze(politician=None, reden_dict=reden):
     return summary_text, scores['rouge1'].precision, scores['rouge1'].recall, scores['rouge1'].fmeasure
 
 
+def get_speech(politician):
+    return reden.get(politician, "⚠️ Keine Rede gefunden.")
 
 with gr.Blocks() as demo:
-    gr.Markdown("# Summarization with Rouge Evaluation")
-    gr.Markdown("Enter speech to obtain bullet points")
+    gr.Markdown("# Speech Summarization with Rouge Evaluation")
+    gr.Markdown("Choose a politician and generate bullet points of their speech")
+
     with gr.Row():
         with gr.Column():
-            politician = gr.Dropdown(label="Politician", choices=reden.keys(), value="Text")
-            #reden_text = gr.Textbox(label="Input Speech", lines=15, placeholder="Enter the speech text here...")
+            # IMPORTANT: value muss in choices sein
+            keys = list(reden.keys())
+            politician = gr.Dropdown(
+                label="Politician",
+                choices=keys,
+                value=(keys[0] if keys else None),
+            )
+
+            speech_text = gr.Textbox(
+                label="Original Rede",
+                lines=18,
+                interactive=False,
+            )
+
         with gr.Column():
             output_text = gr.Textbox(label="Generated Summary", lines=15)
-            with gr.Row():
-                with gr.Column():       
-                    gr.Markdown("Calculated Rouge Scores")
-                    precision = gr.Number(label="Rouge-1 Precision", interactive=True, elem_id="rouge1_precision")
-                    recall = gr.Number(label="Rouge-1 Recall", interactive=True, elem_id="rouge1_recall")
-                    f1_score = gr.Number(label="Rouge-1 F1", interactive=True, elem_id="rouge1_f1")
+            gr.Markdown("Calculated Rouge Scores")
+            precision = gr.Number(label="Rouge-1 Precision")
+            recall = gr.Number(label="Rouge-1 Recall")
+            f1_score = gr.Number(label="Rouge-1 F1")
+
+    # Dropdown -> Rede anzeigen
+
     summarize_button = gr.Button("Generate Summary")
-    summarize_button.click(fn=analyze, inputs= politician, outputs=(output_text, precision, recall,f1_score)  )
+    summarize_button.click(fn=analyze, inputs=politician, outputs=[output_text, precision, recall, f1_score])
+    politician.change(fn=get_speech, inputs=politician, outputs=speech_text)
 
-
-
-# Launch the app with Gradio UI
 if __name__ == "__main__":
-    demo.launch(footer_links=["gradio", "roby"])
+    demo.launch()
 
 
 
-### Stelle heute (31.12.2025 noc eine vollständige UI fertig    )

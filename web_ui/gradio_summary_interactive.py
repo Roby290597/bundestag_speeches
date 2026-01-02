@@ -4,6 +4,7 @@ from rouge_score import rouge_scorer
 import yaml
 
 
+
 # using pipeline API for summarization task
 summarization = pipeline("summarization", model="t5-small", tokenizer="t5-small", max_length=1100, min_length=700)
 # rouge metric
@@ -13,7 +14,7 @@ scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
 
 def summarize(text):
     summary = summarization(text)[0]['summary_text']
-    summary = summary.replace(".", ".\n\n")  # füge Zeilenumbruch nach jedem Satz hinzu
+    summary = summary.replace(".", "\n\n -")  # füge Zeilenumbruch nach jedem Satz hinzu
     return summary
 
 def compute_rouge(input_text, summary_text):
@@ -34,6 +35,7 @@ with gr.Blocks() as demo:
     gr.Markdown("Enter speech to obtain bullet points")
     with gr.Row():
         with gr.Column():
+            #gr.Dropdown(label="Politician", choices=[], value="Text")
             input_text = gr.Textbox(label="Input Speech", lines=15, placeholder="Enter the speech text here...")
         with gr.Column():
             output_text = gr.Textbox(label="Generated Summary", lines=15)
@@ -47,7 +49,10 @@ with gr.Blocks() as demo:
     summarize_button.click(fn=analyze, inputs=input_text, outputs=(output_text, precision, recall,f1_score)  )
 
 
-demo.launch()
+
+# Launch the app with Gradio UI
+if __name__ == "__main__":
+    demo.launch(footer_links=["gradio", "roby"])
 
 
 
