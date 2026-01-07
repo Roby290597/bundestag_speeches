@@ -18,7 +18,7 @@ if extr and extr not in sys.path:
 print("extr hinzugefügt zu sys.path:", extr)
 
 from redner_extraction import extract_speeches, extract_all_speakers, extract_comments 
-
+from support_func import chunksizing
 
 # Füge Parent-Dir von `extr` zu sys.path hinzu, damit z.B. config.yaml gefunden werden kann
 parent_dir = str(Path(extr).parent)
