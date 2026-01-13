@@ -15,3 +15,18 @@ $env:HF_TOKEN="xxxx"
 ## Erstellen von environment.yaml
 # conda env create -f environment.yml
 
+
+
+
+###### Suche von Text Summarization 
+
+# Modelle 
+    z-dickson/BART_political_event_detection"
+
+# Datasets 
+    rcds/swiss_leading_decision_summarization
+    marccgrau/synthetic_call_center_summaries
+    tasksource/seahorse_summarization_evaluation
+    page-summarization-eval-de
+    PleIAs/SYNTH
+    snipaid/snippet-mlsum-500
