@@ -12,6 +12,15 @@ from pathlib import Path
 
 ##################################################
 
+
+def reaction(score):
+    if score >= 0.5:
+        return "😀"
+    elif score >= 0.3:
+        return "😐"
+    else:
+        return "😞"
+
 extr = next((str(p/"extr") for p in [Path.cwd()] + list(Path.cwd().parents) if (p/"extr").is_dir()), None)
 if extr and extr not in sys.path:
     sys.path.insert(0, extr)
@@ -119,7 +128,7 @@ with gr.Blocks() as demo:
     # Dropdown -> Rede anzeigen
 
     summarize_button = gr.Button("Generate Summary")
-    summarize_button.click(fn=analyze, inputs=politician, outputs=[output_text, precision, recall, f1_score])
+    summarize_button.click(fn=analyze, inputs=politician, outputs=[output_text, precision , recall, f1_score])
     politician.change(fn=get_speech, inputs=politician, outputs=speech_text)
 
 if __name__ == "__main__":

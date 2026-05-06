@@ -10,6 +10,9 @@ import os
 
 from pathlib import Path
 
+def prRed(s): print("\033[91m {}\033[00m".format(s))
+
+
 ##################################################
 
 extr = next((str(p/"extr") for p in [Path.cwd()] + list(Path.cwd().parents) if (p/"extr").is_dir()), None)
@@ -55,17 +58,17 @@ assert len(redner) == len(reden.keys()), "Fehler: Anzahl Redner ungleich Anzahl 
 ###########################################
 
 
-
-
-
 # using pipeline API for summarization task
 summarization = pipeline("summarization", model="t5-small", tokenizer="t5-small", max_length=1100, min_length=700)
 # rouge metric
 scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
 
-
+model_name = "t5-small"
 
 def summarize(text):
+    summarization = pipeline("summarization", model=model_name, tokenizer=model_name, max_length=1100, min_length=700)
+    #summarization = pipeline("summarization", model="t5-small", tokenizer="t5-small", max_length=1100, min_length=700)
+    #summarization = pipeline("summarization", model="Sachin21112004/news-summarizer", tokenizer="Sachin21112004/news-summarizer", max_length=1100, min_length=700)
     summary = summarization(text)[0]['summary_text']
     summary = summary.replace(".", "\n\n -")  # füge Zeilenumbruch nach jedem Satz hinzu
     return summary
@@ -90,9 +93,8 @@ def get_speech(politician):
     return reden.get(politician, "⚠️ Keine Rede gefunden.")
 
 with gr.Blocks() as demo:
-    gr.Markdown("# Speech Summarization with Rouge Evaluation")
+    gr.Markdown("# Speech Summarization with Rouge Evaluation (running with" +prRed(model_name)+") !!!!")
     gr.Markdown("Choose a politician and generate bullet points of their speech")
-
     with gr.Row():
         with gr.Column():
             # IMPORTANT: value muss in choices sein

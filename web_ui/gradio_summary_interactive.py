@@ -14,7 +14,7 @@ scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'], use_stemmer=True)
 
 def summarize(text):
     summary = summarization(text)[0]['summary_text']
-    summary = summary.replace(".", "\n\n -")  # füge Zeilenumbruch nach jedem Satz hinzu
+    #summary = summary.replace(".", "\n\n -")  # füge Zeilenumbruch nach jedem Satz hinzu
     return summary
 
 def compute_rouge(input_text, summary_text):
@@ -52,8 +52,5 @@ with gr.Blocks() as demo:
 
 # Launch the app with Gradio UI
 if __name__ == "__main__":
-    demo.launch(footer_links=["gradio"])
+    demo.launch(footer_links=["gradio"], share=True)
 
-
-
-### Stelle heute (31.12.2025 noc eine vollständige UI fertig    )
