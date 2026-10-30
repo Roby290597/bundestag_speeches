@@ -30,6 +30,13 @@ summarization:
   min_length: 700
   metric : ("rouge1", "rouge2", "rougeL")
 
+ollama:
+  host: http://localhost:11434
+  model: qwen3.5:latest
+  num_ctx: 8192       # Kontextfenster in Tokens (Ollama-Default ist viel kleiner)
+  chunk_chars: 12000  # längere Reden werden in Abschnitte dieser Größe geteilt
+  temperature: 0.2
+
 sentiment_analysis:
   model: bert
   tokenizer: bert-base-german-cased
