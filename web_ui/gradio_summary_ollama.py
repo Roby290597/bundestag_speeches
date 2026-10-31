@@ -204,4 +204,5 @@ with gr.Blocks() as demo:
     demo.load(fn=get_speech, inputs=politician, outputs=[speech_text, info])
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share = True)
+    
