@@ -2,7 +2,7 @@
 
 import pytest
 
-from support_func import chunksizing
+from extr.support_func import chunksizing
 
 
 def test_leerer_text_gibt_leere_liste():
@@ -48,3 +48,9 @@ def test_ueberlanger_satz_wird_hart_geteilt():
     chunks = chunksizing(100, langer_satz)
     assert [len(c) for c in chunks] == [100, 100, 51]
     assert "".join(chunks) == langer_satz
+
+
+
+
+if __name__ == "__main__":
+    test_ueberlanger_satz_wird_hart_geteilt()

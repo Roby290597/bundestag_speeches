@@ -73,10 +73,11 @@ Abschnitt:
 FINAL_PROMPT = """Fasse die folgende Bundestagsrede von {name} zusammen.
 Nutze genau diese Struktur in Markdown:
 
-**Thema:** ein Satz
+**Thema:** 
+- ein Satz
 
 **Kernaussagen:**
-- 3 bis 6 Stichpunkte
+- Maximal 3 Stichpunkte
 
 **Forderungen / Positionen:**
 - Stichpunkte (oder "keine konkreten Forderungen")
