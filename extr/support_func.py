@@ -11,10 +11,6 @@ from typing import List
 
 
 
-
-
-
-
 def chunksizing(chunk_size: int, reden: str) -> List[str]:
     """
     Split `reden` into chunks of (roughly) <= chunk_size characters,
