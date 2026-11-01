@@ -16,13 +16,6 @@ data:
   label_column: label
   shuffle: true
 
-training:
-  epochs: 10
-  batch_size: 32
-  learning_rate: 0.0003
-  optimizer: adam
-  device: cuda    # oder "cpu"
-
 summarization:
   model: t5-small
   tokenizer: t5-small
@@ -43,11 +36,6 @@ sentiment_analysis:
   num_labels: 3
 
 
-fact_checking:
-  model: bert
-  tokenizer: bert-base-german-cased
-
-
-logging:
-  level: INFO
-  save_every: 1
+# logging:
+#   level: INFO
+#   save_every: 1
