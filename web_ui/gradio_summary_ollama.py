@@ -1,6 +1,3 @@
-import os
-os.environ.setdefault("USE_TF", "0")  # transformers soll TensorFlow/Keras 3 nicht laden
-
 import gradio as gr
 import yaml
 import json
@@ -8,31 +5,19 @@ import re
 ## XML
 import xml.etree.ElementTree as ET
 import requests
-import sys
+import os, sys
+os.environ.setdefault("USE_TF", "0")  # transformers soll TensorFlow/Keras 3 nicht laden
+sys.path.insert(0, os.getcwd())  # Aktuelles Verzeichnis zu sys.path hinzufügen
 
-from pathlib import Path
-
-
-##################################################
-
-extr = next((str(p/"extr") for p in [Path.cwd()] + list(Path.cwd().parents) if (p/"extr").is_dir()), None)
-if extr is None:
-    extr = str(Path(__file__).resolve().parents[1] / "extr")
-if extr not in sys.path:
-    sys.path.insert(0, extr)
-print("extr hinzugefügt zu sys.path:", extr)
-
-from redner_extraction import extract_speeches
-
-parent_dir = Path(extr).parent
+from extr.redner_extraction import extract_speeches
 
 # Load YAML data
-with open(parent_dir / "config.yaml", "r", encoding="utf-8") as file:
+with open("config.yaml", "r", encoding="utf-8") as file:
     data = yaml.safe_load(file)
 
 ollama_cfg = data.get("ollama", {})
 OLLAMA_HOST = ollama_cfg.get("host", "http://localhost:11434")
-DEFAULT_MODEL = ollama_cfg.get("model", "qwen3.5:latest")
+DEFAULT_MODEL = ollama_cfg.get("model", "llama3:latest")
 NUM_CTX = ollama_cfg.get("num_ctx", 8192)
 CHUNK_CHARS = ollama_cfg.get("chunk_chars", 12000)
 TEMPERATURE = ollama_cfg.get("temperature", 0.2)
@@ -199,11 +184,11 @@ with gr.Blocks() as demo:
         with gr.Column():
             summarize_button = gr.Button("Generate Summary", variant="primary")
             output_text = gr.Markdown(label="Generated Summary")
-
+        
     summarize_button.click(fn=summarize, inputs=[politician, model], outputs=output_text)
     politician.change(fn=get_speech, inputs=politician, outputs=[speech_text, info])
     demo.load(fn=get_speech, inputs=politician, outputs=[speech_text, info])
 
 if __name__ == "__main__":
-    demo.launch(share = True)
+    demo.launch()
     

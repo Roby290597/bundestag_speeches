@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import pytest
 
-import redner_extraction as rx
+import extr.redner_extraction as rx
 from conftest import FakeSentimentPipeline
 
 

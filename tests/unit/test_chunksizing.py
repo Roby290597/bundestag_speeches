@@ -1,7 +1,10 @@
 """Unit-Tests fuer extr/support_func.chunksizing (reine Funktion, keine Abhaengigkeiten)."""
 
-import pytest
+import os
 
+import pytest
+import sys
+sys.path.insert(0, os.getcwd())
 from extr.support_func import chunksizing
 
 
