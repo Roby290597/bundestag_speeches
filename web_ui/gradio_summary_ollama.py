@@ -6,6 +6,12 @@ import re
 import xml.etree.ElementTree as ET
 import requests
 import os, sys
+
+
+from summary_func import list_models, ollama_stream, split_text, summarize, get_speech
+
+
+
 os.environ.setdefault("USE_TF", "0")  # transformers soll TensorFlow/Keras 3 nicht laden
 sys.path.insert(0, os.getcwd())  # Aktuelles Verzeichnis zu sys.path hinzufügen
 
@@ -76,95 +82,99 @@ Nutze genau diese Struktur in Markdown:
 \"\"\""""
 
 
-def list_models():
-    try:
-        tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5).json()
-        return sorted(m["name"] for m in tags.get("models", []))
-    except requests.RequestException:
-        return []
+# def list_models():
+#     try:
+#         tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5).json()
+#         return sorted(m["name"] for m in tags.get("models", []))
+#     except requests.RequestException:
+#         return []
 
 
-def ollama_stream(prompt, model):
-    """Streamt die Antwort von Ollama Token für Token."""
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        "stream": True,
-        "think": False,  # Thinking-Modelle (qwen3.x, deepseek-r1) sollen direkt antworten
-        "options": {"num_ctx": NUM_CTX, "temperature": TEMPERATURE},
-    }
-    r = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=600)
-    if r.status_code == 400 and "think" in r.text:
-        # Modell unterstützt den think-Parameter nicht (z.B. llama3)
-        payload.pop("think")
-        r = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=600)
-    r.raise_for_status()
-    for line in r.iter_lines():
-        if not line:
-            continue
-        chunk = json.loads(line)
-        if "error" in chunk:
-            raise RuntimeError(chunk["error"])
-        yield chunk.get("message", {}).get("content", "")
+# def ollama_stream(prompt, model):
+#     """Streamt die Antwort von Ollama Token für Token."""
+#     payload = {
+#         "model": model,
+#         "messages": [
+#             {"role": "system", "content": SYSTEM_PROMPT},
+#             {"role": "user", "content": prompt},
+#         ],
+#         "stream": True,
+#         "think": False,  # Thinking-Modelle (qwen3.x, deepseek-r1) sollen direkt antworten
+#         "options": {"num_ctx": NUM_CTX, "temperature": TEMPERATURE},
+#     }
+#     r = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=600)
+#     if r.status_code == 400 and "think" in r.text:
+#         # Modell unterstützt den think-Parameter nicht (z.B. llama3)
+#         payload.pop("think")
+#         r = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=600)
+#     r.raise_for_status()
+#     for line in r.iter_lines():
+#         if not line:
+#             continue
+#         chunk = json.loads(line)
+#         if "error" in chunk:
+#             raise RuntimeError(chunk["error"])
+#         yield chunk.get("message", {}).get("content", "")
 
 
-def split_text(text, max_chars=CHUNK_CHARS):
-    """Teilt den Text an Absatz- bzw. Satzgrenzen in Stücke von höchstens max_chars Zeichen."""
-    parts = []
-    for para in text.split("\n"):
-        if len(para) <= max_chars:
-            parts.append(para)
-        else:
-            parts.extend(re.split(r"(?<=[.!?])\s+", para))
+# def split_text(text, max_chars=CHUNK_CHARS):
+#     """Teilt den Text an Absatz- bzw. Satzgrenzen in Stücke von höchstens max_chars Zeichen."""
+#     parts = []
+#     for para in text.split("\n"):
+#         if len(para) <= max_chars:
+#             parts.append(para)
+#         else:
+#             parts.extend(re.split(r"(?<=[.!?])\s+", para))
 
-    chunks, current = [], ""
-    for part in parts:
-        if current and len(current) + len(part) + 1 > max_chars:
-            chunks.append(current)
-            current = ""
-        current += part + "\n"
-    if current.strip():
-        chunks.append(current)
-    return chunks
-
-
-def summarize(politician, model):
-    """Map-Reduce: lange Reden erst abschnittsweise, dann gesamt zusammenfassen."""
-    text = reden.get(politician)
-    if not text:
-        yield "⚠️ Keine Rede gefunden."
-        return
-    if not model:
-        yield "⚠️ Kein Ollama-Modell gefunden. Läuft `ollama serve`?"
-        return
-
-    chunks = split_text(text)
-    try:
-        if len(chunks) == 1:
-            final_input, kind = text, "Rede"
-        else:
-            partials = []
-            for i, chunk in enumerate(chunks, 1):
-                yield f"⏳ Fasse Abschnitt {i}/{len(chunks)} zusammen ..."
-                prompt = CHUNK_PROMPT.format(i=i, n=len(chunks), name=politician, text=chunk)
-                partials.append("".join(ollama_stream(prompt, model)))
-            final_input = "\n\n".join(f"Abschnitt {i}:\n{p}" for i, p in enumerate(partials, 1))
-            kind = "Zusammenfassungen der einzelnen Abschnitte"
-
-        output = ""
-        for token in ollama_stream(FINAL_PROMPT.format(name=politician, kind=kind, text=final_input), model):
-            output += token
-            yield output
-    except (requests.RequestException, RuntimeError) as e:
-        yield f"⚠️ Fehler bei der Anfrage an Ollama: {e}"
+#     chunks, current = [], ""
+#     for part in parts:
+#         if current and len(current) + len(part) + 1 > max_chars:
+#             chunks.append(current)
+#             current = ""
+#         current += part + "\n"
+#     if current.strip():
+#         chunks.append(current)
+#     return chunks
 
 
-def get_speech(politician):
-    text = reden.get(politician, "⚠️ Keine Rede gefunden.")
-    return text, f"{len(text.split())} Wörter, {len(split_text(text))} Abschnitt(e)"
+# def summarize(politician, model):
+#     """Map-Reduce: lange Reden erst abschnittsweise, dann gesamt zusammenfassen."""
+#     text = reden.get(politician)
+#     if not text:
+#         yield "⚠️ Keine Rede gefunden."
+#         return
+#     if not model:
+#         yield "⚠️ Kein Ollama-Modell gefunden. Läuft `ollama serve`?"
+#         return
+
+#     chunks = split_text(text)
+#     try:
+#         if len(chunks) == 1:
+#             final_input, kind = text, "Rede"
+#         else:
+#             partials = []
+#             for i, chunk in enumerate(chunks, 1):
+#                 yield f"⏳ Fasse Abschnitt {i}/{len(chunks)} zusammen ..."
+#                 prompt = CHUNK_PROMPT.format(i=i, n=len(chunks), name=politician, text=chunk)
+#                 partials.append("".join(ollama_stream(prompt, model)))
+#             final_input = "\n\n".join(f"Abschnitt {i}:\n{p}" for i, p in enumerate(partials, 1))
+#             kind = "Zusammenfassungen der einzelnen Abschnitte"
+
+#         output = ""
+#         for token in ollama_stream(FINAL_PROMPT.format(name=politician, kind=kind, text=final_input), model):
+#             output += token
+#             yield output
+#     except (requests.RequestException, RuntimeError) as e:
+#         yield f"⚠️ Fehler bei der Anfrage an Ollama: {e}"
+
+
+# def get_speech(politician):
+#     text = reden.get(politician, "⚠️ Keine Rede gefunden.")
+#     return text, f"{len(text.split())} Wörter, {len(split_text(text))} Abschnitt(e)"
+
+
+
+
 
 
 models = list_models()
@@ -190,5 +200,5 @@ with gr.Blocks() as demo:
     demo.load(fn=get_speech, inputs=politician, outputs=[speech_text, info])
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=True)
     
