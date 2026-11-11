@@ -9,6 +9,13 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import pytest
 
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+
 import extr.redner_extraction as rx
 from conftest import FakeSentimentPipeline
 

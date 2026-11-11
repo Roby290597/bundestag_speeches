@@ -1,186 +1,129 @@
-import os
-os.environ.setdefault("USE_TF", "0")  # transformers soll TensorFlow/Keras 3 nicht laden
+"""Gradio-App: Zusammenfassung mit Ollama + Bewertung mit Claude Haiku 5.5 als Judge
+inklusive Kostenrechner fuer die verbrauchten Tokens.
 
-import gradio as gr
-import yaml
+Start aus dem Repo-Root:  python web_ui/gradio_summary_ollama_judge.py
+"""
 import json
+import os
 import re
-## XML
-import xml.etree.ElementTree as ET
-import requests
-import os, sys
-sys.path.insert(0, os.getcwd())  # Aktuelles Verzeichnis zu sys.path hinzufügen
+import sys
+from pathlib import Path
 
-from extr.redner_extraction import extract_speeches
+sys.path.insert(0, os.path.dirname(__file__))  # damit summary_func gefunden wird
 
-# Load YAML data
-with open("config.yaml", "r", encoding="utf-8") as file:
-    data = yaml.safe_load(file)
+import anthropic
+import dotenv
+import gradio as gr
 
-ollama_cfg = data.get("ollama", {})
-OLLAMA_HOST = ollama_cfg.get("host", "http://localhost:11434")
-DEFAULT_MODEL = ollama_cfg.get("model", "qwen3.5:latest")
-NUM_CTX = ollama_cfg.get("num_ctx", 8192)
-CHUNK_CHARS = ollama_cfg.get("chunk_chars", 12000)
-TEMPERATURE = ollama_cfg.get("temperature", 0.2)
+from summary_func import data, reden, list_models, summarize, get_speech, DEFAULT_MODEL
 
-url = data['data']["xml_file"]
-response = requests.get(url)
-# XML in einen Tree parsen
-root = ET.fromstring(response.content)
+dotenv.load_dotenv()  # liest ANTHROPIC_API_KEY aus der .env
 
-reden = {}
-for speech in extract_speeches(root):
-    if not speech['text'].strip():
-        continue
-    if speech['name'] not in reden:
-        reden[speech['name']] = speech['text']
-    else:
-        reden[speech['name']] += "\n\nNächste Rede:\n" + speech['text']
+HERE = Path(__file__).parent
+JUDGE_SYSTEM_PROMPT = (HERE / "JUDGE_SYSTEM_PROMPT.txt").read_text(encoding="utf-8")
+USER_PROMPT = (HERE / "USER_PROMPT.txt").read_text(encoding="utf-8")
+
+judge_cfg = data.get("judge", {})
+JUDGE_MODEL = judge_cfg.get("model", "claude-haiku-5-5")
+PRICE_INPUT = judge_cfg.get("price_input_per_mtok", 0.10)    # USD pro 1 Mio. Input-Tokens
+PRICE_OUTPUT = judge_cfg.get("price_output_per_mtok", 0.50)  # USD pro 1 Mio. Output-Tokens
+
+client = anthropic.Anthropic()
 
 
 ###########################################
-#####   Ollama                        #####
+#####   Kostenrechner                 #####
 ###########################################
 
-SYSTEM_PROMPT = """Du bist ein neutraler politischer Analyst und fasst Reden aus dem Deutschen Bundestag zusammen.
-Regeln:
-- Antworte ausschließlich auf Deutsch.
-- Verwende nur Informationen, die im Text stehen. Erfinde nichts und bewerte nicht.
-- Zwischenrufe, Beifall und Begrüßungsformeln ignorierst du."""
-
-CHUNK_PROMPT = """Hier ist Abschnitt {i} von {n} einer Bundestagsrede von {name}.
-Fasse die wichtigsten Aussagen, Forderungen und Argumente dieses Abschnitts in knappen Stichpunkten zusammen.
-
-Abschnitt:
-\"\"\"
-{text}
-\"\"\""""
-
-FINAL_PROMPT = """Fasse die folgende Bundestagsrede von {name} zusammen.
-Nutze genau diese Struktur in Markdown:
-
-**Thema:** 
-- ein Satz
-
-**Kernaussagen:**
-- Maximal 3 Stichpunkte
-
-**Forderungen / Positionen:**
-- Stichpunkte (oder "keine konkreten Forderungen")
-
-**Kritik an anderen Parteien / der Regierung:**
-- Stichpunkte (oder "keine")
-
-{kind}:
-\"\"\"
-{text}
-\"\"\""""
+def token_cost(input_tokens, output_tokens):
+    """Kosten in USD fuer einen Aufruf."""
+    return input_tokens / 1e6 * PRICE_INPUT + output_tokens / 1e6 * PRICE_OUTPUT
 
 
+def cost_markdown(input_tokens, output_tokens, total, n_calls, n_reden):
+    cost = token_cost(input_tokens, output_tokens)
+    avg = total / n_calls if n_calls else 0
+    return (
+        f"| | Tokens | Kosten |\n|---|---:|---:|\n"
+        f"| Input | {input_tokens:,} | ${input_tokens / 1e6 * PRICE_INPUT:.5f} |\n"
+        f"| Output | {output_tokens:,} | ${output_tokens / 1e6 * PRICE_OUTPUT:.5f} |\n"
+        f"| **Dieser Aufruf** | {input_tokens + output_tokens:,} | **${cost:.5f}** |\n\n"
+        f"Session gesamt: **${total:.5f}** bei {n_calls} Bewertung(en)\n\n"
+        f"Hochrechnung für {int(n_reden)} Reden: **${avg * n_reden:.4f}**\n\n"
+        f"_Preise: ${PRICE_INPUT}/MTok Input, ${PRICE_OUTPUT}/MTok Output_"
+    )
 
 
+###########################################
+#####   LLM as a Judge                #####
+###########################################
+
+def parse_json(text):
+    """Holt das JSON aus der Antwort, auch wenn es in ```json ... ``` steht."""
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    return json.loads(match.group(0)) if match else None
 
 
+def judge(politician, summary, n_reden, state):
+    """Laesst Haiku die Zusammenfassung bewerten und berechnet die Kosten."""
+    total, n_calls = state
+    rede = reden.get(politician)
+    if not rede or not summary or summary.startswith(("⚠️", "⏳")):
+        return "⚠️ Erst eine Zusammenfassung erzeugen.", "", state
 
-def list_models():
     try:
-        tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5).json()
-        return sorted(m["name"] for m in tags.get("models", []))
-    except requests.RequestException:
-        return []
+        response = client.messages.create(
+            model=JUDGE_MODEL,
+            max_tokens=1024,
+            temperature=0,
+            system=JUDGE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": USER_PROMPT.format(
+                redner=politician, rede=rede, zusammenfassung=summary)}],
+        )
+    except anthropic.APIError as e:
+        return f"⚠️ Fehler bei der Anfrage an Anthropic: {e}", "", state
 
+    usage = response.usage
+    total += token_cost(usage.input_tokens, usage.output_tokens)
+    n_calls += 1
+    costs = cost_markdown(usage.input_tokens, usage.output_tokens, total, n_calls, n_reden)
 
-def ollama_stream(prompt, model):
-    """Streamt die Antwort von Ollama Token für Token."""
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        "stream": True,
-        "think": False,  # Thinking-Modelle (qwen3.x, deepseek-r1) sollen direkt antworten
-        "options": {"num_ctx": NUM_CTX, "temperature": TEMPERATURE},
-    }
-    r = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=600)
-    if r.status_code == 400 and "think" in r.text:
-        # Modell unterstützt den think-Parameter nicht (z.B. llama3)
-        payload.pop("think")
-        r = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, stream=True, timeout=600)
-    r.raise_for_status()
-    for line in r.iter_lines():
-        if not line:
-            continue
-        chunk = json.loads(line)
-        if "error" in chunk:
-            raise RuntimeError(chunk["error"])
-        yield chunk.get("message", {}).get("content", "")
-
-
-def split_text(text, max_chars=CHUNK_CHARS):
-    """Teilt den Text an Absatz- bzw. Satzgrenzen in Stücke von höchstens max_chars Zeichen."""
-    parts = []
-    for para in text.split("\n"):
-        if len(para) <= max_chars:
-            parts.append(para)
-        else:
-            parts.extend(re.split(r"(?<=[.!?])\s+", para))
-
-    chunks, current = [], ""
-    for part in parts:
-        if current and len(current) + len(part) + 1 > max_chars:
-            chunks.append(current)
-            current = ""
-        current += part + "\n"
-    if current.strip():
-        chunks.append(current)
-    return chunks
-
-
-def summarize(politician, model):
-    """Map-Reduce: lange Reden erst abschnittsweise, dann gesamt zusammenfassen."""
-    text = reden.get(politician)
-    if not text:
-        yield "⚠️ Keine Rede gefunden."
-        return
-    if not model:
-        yield "⚠️ Kein Ollama-Modell gefunden. Läuft `ollama serve`?"
-        return
-
-    chunks = split_text(text)
+    text = response.content[0].text
     try:
-        if len(chunks) == 1:
-            final_input, kind = text, "Rede"
-        else:
-            partials = []
-            for i, chunk in enumerate(chunks, 1):
-                yield f"⏳ Fasse Abschnitt {i}/{len(chunks)} zusammen ..."
-                prompt = CHUNK_PROMPT.format(i=i, n=len(chunks), name=politician, text=chunk)
-                partials.append("".join(ollama_stream(prompt, model)))
-            final_input = "\n\n".join(f"Abschnitt {i}:\n{p}" for i, p in enumerate(partials, 1))
-            kind = "Zusammenfassungen der einzelnen Abschnitte"
+        result = parse_json(text)
+    except json.JSONDecodeError:
+        result = None
+    if not result:
+        return f"⚠️ Antwort war kein gültiges JSON:\n\n```\n{text}\n```", costs, (total, n_calls)
 
-        output = ""
-        for token in ollama_stream(FINAL_PROMPT.format(name=politician, kind=kind, text=final_input), model):
-            output += token
-            yield output
-    except (requests.RequestException, RuntimeError) as e:
-        yield f"⚠️ Fehler bei der Anfrage an Ollama: {e}"
+    def liste(items):
+        return "\n".join(f"- {x}" for x in items) if items else "- keine"
+
+    scores = (
+        f"| Kriterium | Note |\n|---|:---:|\n"
+        f"| Faktentreue | {result.get('faktentreue')} / 5 |\n"
+        f"| Abdeckung | {result.get('abdeckung')} / 5 |\n"
+        f"| Struktur | {result.get('struktur')} / 5 |\n\n"
+        f"**Begründung:** {result.get('begruendung', '')}\n\n"
+        f"**Unbelegte Aussagen:**\n{liste(result.get('unbelegte_aussagen', []))}\n\n"
+        f"**Fehlende Punkte:**\n{liste(result.get('fehlende_punkte', []))}"
+    )
+    return scores, costs, (total, n_calls)
 
 
-def get_speech(politician):
-    text = reden.get(politician, "⚠️ Keine Rede gefunden.")
-    return text, f"{len(text.split())} Wörter, {len(split_text(text))} Abschnitt(e)"
-
+###########################################
+#####   UI                            #####
+###########################################
 
 models = list_models()
 default_model = DEFAULT_MODEL if DEFAULT_MODEL in models else (models[0] if models else None)
 keys = sorted(reden.keys())
 
 with gr.Blocks() as demo:
-    gr.Markdown("# Bundestag Speech Summarization (lokal mit Ollama)")
-    gr.Markdown("Wähle eine:n Redner:in und ein Modell und erzeuge eine strukturierte Zusammenfassung.")
+    gr.Markdown("# Bundestag Speech Summarization + LLM as a Judge")
+    gr.Markdown(f"Zusammenfassung lokal mit Ollama, Bewertung mit `{JUDGE_MODEL}`.")
+    cost_state = gr.State((0.0, 0))  # (Gesamtkosten in USD, Anzahl Bewertungen)
+
     with gr.Row():
         with gr.Column():
             politician = gr.Dropdown(label="Politician", choices=keys, value=(keys[0] if keys else None))
@@ -189,16 +132,19 @@ with gr.Blocks() as demo:
             speech_text = gr.Textbox(label="Original Rede", lines=18, interactive=False)
 
         with gr.Column():
-            with gr.Row():
-                summarize_button = gr.Button("Generate Summary", variant="primary")
-                output_text = gr.Markdown(label="Generated Summary")
-            with gr.Row():
-                gr.Markdown("**LOOOOOOL**")
-        
+            summarize_button = gr.Button("Generate Summary", variant="primary")
+            output_text = gr.Markdown(label="Generated Summary")
+            judge_button = gr.Button("Mit Haiku bewerten")
+            scores_md = gr.Markdown()
+            gr.Markdown("### Kostenrechner")
+            n_reden = gr.Number(label="Hochrechnung für Anzahl Reden", value=20, precision=0)
+            cost_md = gr.Markdown()
+
     summarize_button.click(fn=summarize, inputs=[politician, model], outputs=output_text)
+    judge_button.click(fn=judge, inputs=[politician, output_text, n_reden, cost_state],
+                       outputs=[scores_md, cost_md, cost_state])
     politician.change(fn=get_speech, inputs=politician, outputs=[speech_text, info])
     demo.load(fn=get_speech, inputs=politician, outputs=[speech_text, info])
 
 if __name__ == "__main__":
     demo.launch()
-    
